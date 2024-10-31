@@ -13,7 +13,9 @@ from tqdm import tqdm
 from .method import FSCLIPmethod
 from .utils import *
 
+#NOTE: the following three functions are the implementation derived from the theoritical results.
 def calculate_lr_alpha(features, clip_weights):
+    # check equation 11 in the paper.
     # lr_alpha
     ftT = features @ clip_weights
     temp = torch.sum(torch.pow(ftT, 2),dim = 0)
@@ -22,6 +24,7 @@ def calculate_lr_alpha(features, clip_weights):
     return lr_alpha
 
 def calculate_init_alpha(features, labels, shots, clip_weights):
+    # check equation 15 of the paper.
     # init_alpha
     alpha_tilde = compute_centroids_alpha((features @ clip_weights).unsqueeze(0), labels.unsqueeze(0))[0]
     alpha_tilde = alpha_tilde.double() * shots
@@ -30,6 +33,7 @@ def calculate_init_alpha(features, labels, shots, clip_weights):
     return final_init_alpha_mean
 
 def calculate_lr_w(features):
+    # check equation 10 in the paper
     # lr_w
     ff_t = features.T @ features
     ff_t_np = ff_t.cpu().numpy()
@@ -66,19 +70,21 @@ class LinearProbe_P2(FSCLIPmethod):
             text_weights : torch.Tensor of shape [num_shot*num_classes, 1024]
         """
 
-        # Feature Extraction for Training
+        # Feature Extraction for Training - NOTE: mainly the image features
         print("\nExtracting visual features and labels from train set.")
         features, labels = [], []
         with torch.no_grad():
             for i, (images, target) in enumerate(tqdm(train_loader)):
                 images, target = images.cuda(), target.cuda()
                 image_features = model.encode_image(images)
-                image_features /= image_features.norm(dim=-1, keepdim=True)
+                # remember when perform retrieval or similarity task, always normalize it
+                image_features /= image_features.norm(dim=-1, keepdim=True) 
                 features.append(image_features)
                 labels.append(target)  
+        # NOTE: collect all image features and the corresponding labels from the training dataset.
         features, labels = torch.cat(features), torch.cat(labels)
         
-        # Feature Extraction for Validation
+        # Feature Extraction for Validation - do the same thing as the training dataset
         print("\nExtracting visual features and labels from val set.")
         val_features, val_labels = [], []
         with torch.no_grad():
@@ -90,9 +96,10 @@ class LinearProbe_P2(FSCLIPmethod):
                 val_labels.append(target)
         val_features, val_labels = torch.cat(val_features), torch.cat(val_labels)
         
-
+        # NOTE: this is the class prototype with d dimensions
         centroids = compute_centroids(features.unsqueeze(0), labels.unsqueeze(0))  # [batch, num_class, d]
         
+        # initial weights prototype
         classifier = nn.Linear(features.shape[1], int(features.shape[0]/self.shot),bias=True).to(model.dtype).cuda()
         classifier.weight.data = centroids[0]
 
@@ -123,7 +130,7 @@ class LinearProbe_P2(FSCLIPmethod):
         for epoch in range(self.epoch):
             
             print('Running model for epoch: {}'.format(epoch))
-            classifier.train()
+            classifier.train() # only train the classifier.
             vision_logits = classifier(features)
             text_logits = features @ text_weights
             logits = vision_logits + torch.ones(features.shape[0],1).to(model.dtype).cuda() @ alpha_vec * text_logits

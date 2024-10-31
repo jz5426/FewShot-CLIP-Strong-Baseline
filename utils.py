@@ -192,7 +192,9 @@ def load_cfg_from_cfg_file(file: str):
 def merge_cfg_from_list(cfg: CfgNode,
                         cfg_list: List[str]):
     new_cfg = copy.deepcopy(cfg)
+    # make sure the arguments are paired instead of odd.
     assert len(cfg_list) % 2 == 0, cfg_list
+    
     for full_key, v in zip(cfg_list[0::2], cfg_list[1::2]):
         subkey = full_key.split('.')[-1]
         assert subkey in cfg, 'Non-existent key: {}'.format(full_key)

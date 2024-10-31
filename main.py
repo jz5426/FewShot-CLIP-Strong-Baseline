@@ -20,6 +20,7 @@ from utils import *
 
 def get_arguments():
 
+    # check the read me file to see these are the argument to pass in
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--base_config', default='configs/base.yaml',
@@ -30,8 +31,11 @@ def get_arguments():
     parser.add_argument('--opts', default=None, nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
+    # default is the base.yaml file => conver that into a object
     cfg = load_cfg_from_cfg_file(args.base_config)
-    cfg.update(load_cfg_from_cfg_file(args.dataset_config))
+    cfg.update(load_cfg_from_cfg_file(args.dataset_config)) # add the dataset config => exmaple is dataset: 'caltech101'
+
+    # these are the extract arguments
     if args.opts is not None:
         cfg = merge_cfg_from_list(cfg, args.opts)
     return cfg
@@ -43,6 +47,7 @@ def main():
     # Load config file
     cfg = get_arguments()
 
+    # add the cache directory to the method
     cache_dir = os.path.join('./caches', cfg['dataset'])
     os.makedirs(cache_dir, exist_ok=True)
     cfg['cache_dir'] = cache_dir
@@ -50,10 +55,11 @@ def main():
     print("\nRunning configs.")
     print(cfg, "\n")
 
+    # choose the method to run based on the argument passed in. could be LinearProbe_P2 
     method = all_methods[cfg['method']](args=cfg)
 
     # CLIP
-    clip_model, preprocess = clip.load(cfg['backbone'])
+    clip_model, preprocess = clip.load(cfg['backbone']) # note that there is default backbone.
     clip_model.eval()
 
     # Prepare dataset
@@ -61,8 +67,8 @@ def main():
     torch.manual_seed(1)
 
     print("Preparing dataset.")
-    dataset = build_dataset(cfg['dataset'], cfg['root_path'], cfg['shots'])
-    classnames = dataset.classnames
+    dataset = build_dataset(cfg['dataset'], cfg['root_path'], cfg['shots']) # note the dataset cfg['dataset'] comes from the corresponding yaml file.
+    classnames = dataset.classnames # i,e. comes from the inherited DatasetBase class @Property, every dataset class inherit from it.
     print(classnames)
     test_loader = build_data_loader(data_source=dataset.test, batch_size=100, is_train=False, tfm=preprocess, shuffle=False)
 
@@ -76,7 +82,7 @@ def main():
     # Textual features
     print("Getting textual features as CLIP's classifier.")
     clip_weights = clip_classifier(
-        dataset.classnames, dataset.template, clip_model)
+        dataset.classnames, dataset.template, clip_model) # the template is the default textual prompt template
 
     # Pre-load test features
     f_test_time = time.time()
@@ -102,6 +108,7 @@ def main():
         val_loader = build_data_loader(
             data_source=few_shot_val_data, batch_size=cfg["batch_size"], tfm=preprocess, is_train=False, shuffle=False)
 
+        # call one of experimented method from the paper.
         loss, acc = method(train_loader=train_loader,
                         val_loader=val_loader,
                         test_features=test_features,
