@@ -146,13 +146,15 @@ class LinearProbe_P2(FSCLIPmethod):
             if (epoch + 1) % 10 == 0:
                 alpha_vec.data -= self.lr_alpha * alpha_vec.grad.data
 
+            # evaluate the performance on the validation visual feature every epochs.
             classifier.eval()
             vision_logits_val = classifier(val_features)
             text_logits_val = val_features.detach() @ text_weights
             logits_val = vision_logits_val + torch.ones(val_features.shape[0], 1).to(model.dtype).cuda() @ alpha_vec * text_logits_val
             acc_val = np.mean(logits_val.argmax(dim=1).cpu().numpy() ==  val_labels.cpu().numpy()) * 100.0
             print('The accuracy for val data is ',acc_val)
-        
+
+            # save the best model so far according to the performance in the validation set.
             if acc_val >= best_acc:
                 best_acc = acc_val
                 best_epoch = epoch
