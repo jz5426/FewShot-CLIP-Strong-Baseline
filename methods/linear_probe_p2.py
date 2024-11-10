@@ -25,7 +25,7 @@ def calculate_lr_alpha(features, clip_weights):
 
 def calculate_init_alpha(features, labels, shots, clip_weights):
     # check equation 15 of the paper.
-    # init_alpha
+    # init_alpha, check equation 30 in the appendix as well.
     alpha_tilde = compute_centroids_alpha((features @ clip_weights).unsqueeze(0), labels.unsqueeze(0))[0]
     alpha_tilde = alpha_tilde.double() * shots
     alpha_init = 250 / shots * alpha_tilde
@@ -82,6 +82,7 @@ class LinearProbe_P2(FSCLIPmethod):
                 features.append(image_features)
                 labels.append(target)  
         # NOTE: collect all image features and the corresponding labels from the training dataset.
+        # there are total of N of them SxC in the entire task.
         features, labels = torch.cat(features), torch.cat(labels)
         
         # Feature Extraction for Validation - do the same thing as the training dataset
@@ -100,9 +101,8 @@ class LinearProbe_P2(FSCLIPmethod):
         centroids = compute_centroids(features.unsqueeze(0), labels.unsqueeze(0))  # [batch, num_class, d]
         
         # initial weights prototype
-        classifier = nn.Linear(features.shape[1], int(features.shape[0]/self.shot),bias=True).to(model.dtype).cuda()
-        classifier.weight.data = centroids[0]
-
+        classifier = nn.Linear(features.shape[1], int(features.shape[0]/self.shot),bias=True).to(model.dtype).cuda() # this is random weights
+        classifier.weight.data = centroids[0] # the centroid is the weights
 
         print('Running LP++')
         # lr_w
@@ -136,12 +136,13 @@ class LinearProbe_P2(FSCLIPmethod):
             logits = vision_logits + torch.ones(features.shape[0],1).to(model.dtype).cuda() @ alpha_vec * text_logits
             loss = F.cross_entropy(logits, labels)
             acc = np.mean(logits.argmax(dim=1).cpu().numpy() ==  labels.cpu().numpy()) * 100.0
-    
+            
+            # update the weights at each iterations.
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            # # update for alpha
+            # # update for alpha after iter_alpha = 10
             if (epoch + 1) % 10 == 0:
                 alpha_vec.data -= self.lr_alpha * alpha_vec.grad.data
 
