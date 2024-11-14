@@ -70,6 +70,7 @@ class LinearProbe_P2(FSCLIPmethod):
             text_weights : torch.Tensor of shape [num_shot*num_classes, 1024]
         """
 
+        #NOTE: using the training images to learning the classifier (linear) weights
         # Feature Extraction for Training - NOTE: mainly the image features
         print("\nExtracting visual features and labels from train set.")
         features, labels = [], []
@@ -82,9 +83,10 @@ class LinearProbe_P2(FSCLIPmethod):
                 features.append(image_features)
                 labels.append(target)  
         # NOTE: collect all image features and the corresponding labels from the training dataset.
-        # there are total of N of them SxC in the entire task.
+        # there are total of N of them SxC in the entire task. where S is shots and C is the number of classes, total of N training examples
         features, labels = torch.cat(features), torch.cat(labels)
         
+        #NOTE: using the validation images to get the best model during training.
         # Feature Extraction for Validation - do the same thing as the training dataset
         print("\nExtracting visual features and labels from val set.")
         val_features, val_labels = [], []
@@ -98,11 +100,11 @@ class LinearProbe_P2(FSCLIPmethod):
         val_features, val_labels = torch.cat(val_features), torch.cat(val_labels)
         
         # NOTE: this is the class prototype with d dimensions
-        centroids = compute_centroids(features.unsqueeze(0), labels.unsqueeze(0))  # [batch, num_class, d]
+        centroids = compute_centroids(features.unsqueeze(0), labels.unsqueeze(0))  # [1, number of examples, d]
         
         # initial weights prototype
         classifier = nn.Linear(features.shape[1], int(features.shape[0]/self.shot),bias=True).to(model.dtype).cuda() # this is random weights
-        classifier.weight.data = centroids[0] # the centroid is the weights
+        classifier.weight.data = centroids[0] # the centroid is derived from the features, the few-shot images
 
         print('Running LP++')
         # lr_w
